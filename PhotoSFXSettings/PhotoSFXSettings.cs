@@ -17,11 +17,11 @@ namespace PhotoSFXSettings
 
         [AutoRegisterConfigKey]
         public static ModConfigurationKey<bool> DisableShutterSFX =
-            new("Disable shutter SFX", "Enable or disable shutter sfx", () => true);
+            new("Disable shutter SFX", "Enable or disable shutter sfx", () => false);
 
         [AutoRegisterConfigKey]
         public static ModConfigurationKey<bool> DisableTimerPhotoSFX =
-            new("Disable Timer shutter SFX", "Enable or disable timer shutter sfx", () => true);
+            new("Disable Timer shutter SFX", "Enable or disable timer shutter sfx", () => false);
 
         [AutoRegisterConfigKey]
         public static ModConfigurationKey<float> ShutterVolume =
@@ -51,68 +51,58 @@ namespace PhotoSFXSettings
         }
 
         [HarmonyPatch(typeof(PhotoCaptureManager), nameof(PhotoCaptureManager.PlayCaptureSound))]
-        public class SteamScreenshots_PlayCaptureSound_SoundDisable_Patch
+        public class SteamScreenshots_OnAttach_ChangeShutterSound_Patch
         {
-            static bool Prefix()
+            static bool Prefix(PhotoCaptureManager __instance)
             {
                 if (Config.GetValue(DisableShutterSFX))
                 {
-                    return true; // Skip playing sound
+                    Msg("Skipping shutter sfx sound");
+                    return false; // Skip playing sound
                 }
 
-                return false;
-            }
-        }
-
-        [HarmonyPatch(typeof(PhotoCaptureManager), nameof(PhotoCaptureManager.PlayTimerStartSound))]
-        public class SteamScreenshots_PlayCaptureSound_TimerSoundDisable_Patch
-        {
-            static bool Prefix()
-            {
-                if (Config.GetValue(DisableTimerPhotoSFX))
-                {
-                    return true; // Skip playing sound
-                }
-
-                return false;
-            }
-        }
-
-        [HarmonyPatch(typeof(PhotoCaptureManager), "OnAttach")]
-        public class SteamScreenshots_OnAttach_ChangeShutterSound_Patch
-        {
-            static void Postfix(ref AssetRef<AudioClip> ____shutterClip, ref SyncRef<Slot> ____previewRoot)
-            {
                 var shutterSound = Config.GetValue(ShutterSound);
                 if (string.IsNullOrEmpty(shutterSound))
                 {
                     Msg("Not modifying sound of shutter");
-                    return;
+                    return true;
                 }
 
                 var shutterUri = new Uri(shutterSound);
 
-                ____shutterClip.Target = ____previewRoot.Target.AttachAudioClip(shutterUri);
+                var shutterClip = Traverse.Create(__instance).Field<AssetRef<AudioClip>>("_shutterClip").Value;
+                var previewRoot = Traverse.Create(__instance).Field<SyncRef<Slot>>("_previewRoot").Value;
+                shutterClip.Target = previewRoot.Target.AttachAudioClip(shutterUri);
                 Msg("Modified sound of shutter");
+                return true;
             }
         }
 
-        [HarmonyPatch(typeof(PhotoCaptureManager), "OnAttach")]
+        [HarmonyPatch(typeof(PhotoCaptureManager), nameof(PhotoCaptureManager.PlayTimerStartSound))]
         public class SteamScreenshots_OnAttach_ChangeTimerShutterSound_Patch
         {
-            static void Postfix(ref AssetRef<AudioClip> ____timerStartClip, ref SyncRef<Slot> ____previewRoot)
+            static bool Prefix(PhotoCaptureManager __instance)
             {
+                if (Config.GetValue(DisableTimerPhotoSFX))
+                {
+                    Msg("Skipping timer shutter sfx sound");
+                    return false; // Skip playing sound
+                }
+
+
                 var timerShutterSound = Config.GetValue(TimerShutterSound);
                 if (string.IsNullOrEmpty(timerShutterSound))
                 {
                     Msg("Not modifying sound of timer shutter");
-                    return;
+                    return true;
                 }
 
                 var timerShutterUri = new Uri(timerShutterSound);
-
-                ____timerStartClip.Target = ____previewRoot.Target.AttachAudioClip(timerShutterUri);
+                var timerStartClip = Traverse.Create(__instance).Field<AssetRef<AudioClip>>("_timerStartClip").Value;
+                var previewRoot = Traverse.Create(__instance).Field<SyncRef<Slot>>("_previewRoot").Value;
+                timerStartClip.Target = previewRoot.Target.AttachAudioClip(timerShutterUri);
                 Msg("Modified sound of timer shutter");
+                return true;
             }
         }
 
@@ -123,7 +113,6 @@ namespace PhotoSFXSettings
             {
                 var shutterVolume = Config.GetValue(ShutterVolume);
                 var currentInstructions = instructions.ToList();
-                var clipRef = new AssetRef<AudioClip>();
                 // Looking for specific call to find argument to modify volume
                 for (var i = 0; i < currentInstructions.Count; i++)
                 {
@@ -142,6 +131,7 @@ namespace PhotoSFXSettings
                     if (currentInstructions[i + 2].opcode != OpCodes.Ldc_R4) continue;
                     currentInstructions[i + 2].operand = shutterVolume;
                     Msg("Modified volume operand to new float value");
+                    break;
                 }
 
                 Msg("Finished patching shutter volume");
@@ -156,7 +146,6 @@ namespace PhotoSFXSettings
             {
                 var shutterVolume = Config.GetValue(ShutterVolume);
                 var currentInstructions = instructions.ToList();
-                var clipRef = new AssetRef<AudioClip>();
                 // Looking for specific call to find argument to modify volume
                 for (var i = 0; i < currentInstructions.Count; i++)
                 {
@@ -175,6 +164,7 @@ namespace PhotoSFXSettings
                     if (currentInstructions[i + 2].opcode != OpCodes.Ldc_R4) continue;
                     currentInstructions[i + 2].operand = shutterVolume;
                     Msg("Modified timer volume operand to new float value");
+                    break;
                 }
 
                 Msg("Finished patching timer shutter volume");
