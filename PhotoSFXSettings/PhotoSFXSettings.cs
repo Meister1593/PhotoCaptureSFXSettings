@@ -58,7 +58,7 @@ namespace PhotoSFXSettings
                 if (Config.GetValue(DisableShutterSFX))
                 {
                     Msg("Skipping shutter sfx sound");
-                    return false; // Skip playing sound
+                    return false;
                 }
 
                 var shutterSound = Config.GetValue(ShutterSound);
@@ -69,11 +69,9 @@ namespace PhotoSFXSettings
                 }
 
                 var shutterUri = new Uri(shutterSound);
-
                 var shutterClip = Traverse.Create(__instance).Field<AssetRef<AudioClip>>("_shutterClip").Value;
-                var previewRoot = Traverse.Create(__instance).Field<SyncRef<Slot>>("_previewRoot").Value;
-                shutterClip.Target = previewRoot.Target.AttachAudioClip(shutterUri);
-                Msg("Modified sound of shutter");
+                shutterClip.Target.Asset.SetURL(shutterUri);
+                Msg("Modifying sound of shutter");
                 return true;
             }
         }
@@ -86,7 +84,7 @@ namespace PhotoSFXSettings
                 if (Config.GetValue(DisableTimerPhotoSFX))
                 {
                     Msg("Skipping timer shutter sfx sound");
-                    return false; // Skip playing sound
+                    return false;
                 }
 
 
@@ -100,8 +98,16 @@ namespace PhotoSFXSettings
                 var timerShutterUri = new Uri(timerShutterSound);
                 var timerStartClip = Traverse.Create(__instance).Field<AssetRef<AudioClip>>("_timerStartClip").Value;
                 var previewRoot = Traverse.Create(__instance).Field<SyncRef<Slot>>("_previewRoot").Value;
-                timerStartClip.Target = previewRoot.Target.AttachAudioClip(timerShutterUri);
-                Msg("Modified sound of timer shutter");
+                if (timerStartClip.Asset == null)
+                {
+                    timerStartClip.Target = previewRoot.Target.AttachAudioClip(timerShutterUri);
+                }
+                else
+                {
+                    timerStartClip.Target.Asset.SetURL(timerShutterUri);
+                }
+
+                Msg("Modifying sound of timer shutter");
                 return true;
             }
         }
@@ -117,16 +123,16 @@ namespace PhotoSFXSettings
                 for (var i = 0; i < currentInstructions.Count; i++)
                 {
                     if (currentInstructions[i].opcode != OpCodes.Ldfld) continue;
-                    Msg("Found Ldfld");
+                    Msg("Ldfld");
 
                     if ((currentInstructions[i].operand as FieldInfo)?.Name != "_shutterClip") continue;
-                    Msg("Found _shutterClip");
+                    Msg("_shutterClip");
 
                     if (currentInstructions[i - 1].opcode != OpCodes.Ldarg_0) continue;
-                    Msg("Found Ldarg_0");
+                    Msg("Ldarg_0");
 
                     if (currentInstructions[i + 1].opcode != OpCodes.Callvirt) continue;
-                    Msg("Found Callvirt");
+                    Msg("Callvirt");
 
                     if (currentInstructions[i + 2].opcode != OpCodes.Ldc_R4) continue;
                     currentInstructions[i + 2].operand = shutterVolume;
