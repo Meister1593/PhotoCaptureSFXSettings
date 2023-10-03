@@ -5,63 +5,63 @@ using System.Reflection;
 using System.Reflection.Emit;
 using FrooxEngine;
 using HarmonyLib;
-using NeosModLoader;
+using ResoniteModLoader;
 
-namespace PhotoSFXSettings
+namespace PhotoCaptureSFXSettings
 {
-    public class PhotoSFXSettings : NeosMod
+    public class PhotoCaptureSFXSettings : ResoniteMod
     {
-        internal const string VERSION = "0.0.9";
+        internal const string VERSION = "1.0.0";
 
-        private static ModConfiguration Config;
-
-        [AutoRegisterConfigKey]
-        public static ModConfigurationKey<bool> DisableShutterSFX =
-            new("Disable shutter SFX", "Enable or disable shutter sfx", () => false);
+        private static ModConfiguration _config;
 
         [AutoRegisterConfigKey]
-        public static ModConfigurationKey<bool> DisableTimerPhotoSFX =
-            new("Disable Timer shutter SFX", "Enable or disable timer shutter sfx", () => false);
+        private static readonly ModConfigurationKey<bool> DisablePhotoCaptureSFX =
+            new("Disable shutter SFX", "Enable or disable PhotoCapture sfx", () => false);
 
         [AutoRegisterConfigKey]
-        public static ModConfigurationKey<float> ShutterVolume =
-            new("Shutter volume", "Shutter volume", () => 0.1f);
+        private static readonly ModConfigurationKey<bool> DisableTimerPhotoCaptureSFX =
+            new("Disable Timer shutter SFX", "Enable or disable timer PhotoCapture sfx", () => false);
 
         [AutoRegisterConfigKey]
-        public static ModConfigurationKey<float> TimerPhotoShutterVolume =
-            new("Timer shutter volume", "Timer shutter volume", () => 0.1f);
+        private static readonly ModConfigurationKey<float> PhotoCaptureVolume =
+            new("Shutter volume", "PhotoCapture volume", () => 0.1f);
 
         [AutoRegisterConfigKey]
-        public static ModConfigurationKey<string> ShutterSound =
-            new("Shutter sound", "Shutter sound Record URI", () => "");
+        private static readonly ModConfigurationKey<float> TimerPhotoCaptureVolume =
+            new("Timer shutter volume", "Timer PhotoCapture volume", () => 0.1f);
 
         [AutoRegisterConfigKey]
-        public static ModConfigurationKey<string> TimerShutterSound =
-            new("Timer shutter sound", "Timer shutter sound Record URI", () => "");
+        private static readonly ModConfigurationKey<string> PhotoCaptureSound =
+            new("Shutter sound", "PhotoCapture sound Record URI", () => "");
 
-        public override string Name => "PhotoSFXSettings";
+        [AutoRegisterConfigKey]
+        private static readonly ModConfigurationKey<string> TimerPhotoCaptureSound =
+            new("Timer shutter sound", "Timer PhotoCapture sound Record URI", () => "");
+
+        public override string Name => "PhotoCaptureSFXSettings";
         public override string Author => "Meister1593";
         public override string Version => VERSION;
-        public override string Link => "https://github.com/Meister1593/PhotoSFXSettings";
+        public override string Link => "https://github.com/Meister1593/PhotoCaptureSFXSettings";
 
         public override void OnEngineInit()
         {
-            Config = GetConfiguration();
-            new Harmony("net.meister1593.PhotoSFXSettings").PatchAll();
+            _config = GetConfiguration();
+            new Harmony("net.meister1593.PhotoCaptureSFXSettings").PatchAll();
         }
 
         [HarmonyPatch(typeof(PhotoCaptureManager), nameof(PhotoCaptureManager.PlayCaptureSound))]
         public class SteamScreenshots_OnAttach_ChangeShutterSound_Patch
         {
-            static bool Prefix(PhotoCaptureManager __instance)
+            private static bool Prefix(PhotoCaptureManager instance)
             {
-                if (Config.GetValue(DisableShutterSFX))
+                if (_config.GetValue(DisablePhotoCaptureSFX))
                 {
                     Msg("Skipping shutter sfx sound");
                     return false;
                 }
 
-                var shutterSound = Config.GetValue(ShutterSound);
+                var shutterSound = _config.GetValue(PhotoCaptureSound);
                 if (string.IsNullOrEmpty(shutterSound))
                 {
                     Msg("Not modifying sound of shutter");
@@ -69,7 +69,7 @@ namespace PhotoSFXSettings
                 }
 
                 var shutterUri = new Uri(shutterSound);
-                var shutterClip = Traverse.Create(__instance).Field<AssetRef<AudioClip>>("_shutterClip").Value;
+                var shutterClip = Traverse.Create(instance).Field<AssetRef<AudioClip>>("_shutterClip").Value;
                 shutterClip.Target.Asset.SetURL(shutterUri);
                 Msg("Modifying sound of shutter");
                 return true;
@@ -79,16 +79,16 @@ namespace PhotoSFXSettings
         [HarmonyPatch(typeof(PhotoCaptureManager), nameof(PhotoCaptureManager.PlayTimerStartSound))]
         public class SteamScreenshots_OnAttach_ChangeTimerShutterSound_Patch
         {
-            static bool Prefix(PhotoCaptureManager __instance)
+            private static bool Prefix(PhotoCaptureManager instance)
             {
-                if (Config.GetValue(DisableTimerPhotoSFX))
+                if (_config.GetValue(DisableTimerPhotoCaptureSFX))
                 {
                     Msg("Skipping timer shutter sfx sound");
                     return false;
                 }
 
 
-                var timerShutterSound = Config.GetValue(TimerShutterSound);
+                var timerShutterSound = _config.GetValue(TimerPhotoCaptureSound);
                 if (string.IsNullOrEmpty(timerShutterSound))
                 {
                     Msg("Not modifying sound of timer shutter");
@@ -96,8 +96,8 @@ namespace PhotoSFXSettings
                 }
 
                 var timerShutterUri = new Uri(timerShutterSound);
-                var timerStartClip = Traverse.Create(__instance).Field<AssetRef<AudioClip>>("_timerStartClip").Value;
-                var previewRoot = Traverse.Create(__instance).Field<SyncRef<Slot>>("_previewRoot").Value;
+                var timerStartClip = Traverse.Create(instance).Field<AssetRef<AudioClip>>("_timerStartClip").Value;
+                var previewRoot = Traverse.Create(instance).Field<SyncRef<Slot>>("_previewRoot").Value;
                 if (timerStartClip.Asset == null)
                 {
                     timerStartClip.Target = previewRoot.Target.AttachAudioClip(timerShutterUri);
@@ -115,9 +115,9 @@ namespace PhotoSFXSettings
         [HarmonyPatch(typeof(PhotoCaptureManager), nameof(PhotoCaptureManager.PlayCaptureSound))]
         public static class SteamScreenshots_PlayCaptureSound_ShutterVolume_Patch
         {
-            static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
-                var shutterVolume = Config.GetValue(ShutterVolume);
+                var shutterVolume = _config.GetValue(PhotoCaptureVolume);
                 var currentInstructions = instructions.ToList();
                 // Looking for specific call to find argument to modify volume
                 for (var i = 0; i < currentInstructions.Count; i++)
@@ -148,9 +148,9 @@ namespace PhotoSFXSettings
         [HarmonyPatch(typeof(PhotoCaptureManager), nameof(PhotoCaptureManager.PlayTimerStartSound))]
         public static class SteamScreenshots_PlayCaptureSound_TimerShutterVolume_Patch
         {
-            static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
-                var shutterVolume = Config.GetValue(ShutterVolume);
+                var shutterVolume = _config.GetValue(TimerPhotoCaptureVolume);
                 var currentInstructions = instructions.ToList();
                 // Looking for specific call to find argument to modify volume
                 for (var i = 0; i < currentInstructions.Count; i++)
